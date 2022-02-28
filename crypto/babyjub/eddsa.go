@@ -4,8 +4,8 @@ package babyjub
 import (
 	"math/big"
 
-	"github.com/steinselite/zigo/crypto/internal/utils"
-	"github.com/steinselite/zigo/crypto/poseidon"
+	"github.com/vivijj/zigo/crypto/poseidon"
+	"github.com/vivijj/zigo/crypto/utils"
 )
 
 // PrivateKey is an EdDSA private key, which is a 32byte buffer.
@@ -51,7 +51,7 @@ func (s *PrivKeyScalar) BigInt() *big.Int {
 // PublicKey represents an EdDSA public key, which is a curve point.
 type PublicKey Point
 
-// MarshalText implements the marshaler for PublicKey
+// MarshalText implements the marshaller for PublicKey
 func (pk PublicKey) MarshalText() ([]byte, error) {
 	pkc := pk.Compress()
 	return utils.Hex(pkc[:]).MarshalText()
@@ -90,7 +90,7 @@ func (pk *PublicKey) Point() *Point {
 // point.
 type PublicKeyComp [32]byte
 
-// MarshalText implements the marshaler for the PublicKeyComp
+// MarshalText implements the marshaller for the PublicKeyComp
 func (pkComp PublicKeyComp) MarshalText() ([]byte, error) {
 	return utils.Hex(pkComp[:]).MarshalText()
 }
@@ -106,6 +106,10 @@ func (pkComp *PublicKeyComp) UnmarshalText(h []byte) error {
 // Compress returns the PublicKeyComp for the given PublicKey
 func (pk *PublicKey) Compress() PublicKeyComp {
 	return PublicKeyComp((*Point)(pk).Compress())
+}
+
+func (pk *PublicKey) CompressBi() *big.Int {
+	return (*Point)(pk).CompressBi()
 }
 
 // Decompress returns the PublicKey for the given PublicKeyComp

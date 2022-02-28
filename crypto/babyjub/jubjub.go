@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/steinselite/zigo/crypto/internal/constants"
-	"github.com/steinselite/zigo/crypto/internal/ff"
-	"github.com/steinselite/zigo/crypto/internal/utils"
+	"github.com/vivijj/zigo/crypto/constants"
+	"github.com/vivijj/zigo/crypto/ff"
+	"github.com/vivijj/zigo/crypto/utils"
 )
 
 // babyjub curve:
@@ -42,14 +42,17 @@ func init() {
 	Dff = utils.NewElement().SetBigInt(D)
 
 	Order = utils.NewIntFromString(
-		"21888242871839275222246405745257275088614511777268538073601725287587578984328")
+		"21888242871839275222246405745257275088614511777268538073601725287587578984328",
+	)
 	SubOrder = new(big.Int).Rsh(Order, 3) // (2^Cofactor)*SubOrder = Order(Cofactor = 3)
 
 	B8 = NewPoint()
 	B8.X = utils.NewIntFromString(
-		"16540640123574156134436876038791482806971768689494387082833631921987005038935")
+		"16540640123574156134436876038791482806971768689494387082833631921987005038935",
+	)
 	B8.Y = utils.NewIntFromString(
-		"20819045374670962167435360035096875258406992893633759881276124905556507972311")
+		"20819045374670962167435360035096875258406992893633759881276124905556507972311",
+	)
 }
 
 // PointProjective is the Point representation in projective coordinates
@@ -238,6 +241,12 @@ func UnpackSignY(leBuf [32]byte) (bool, *big.Int) {
 func (p *Point) Compress() [32]byte {
 	sign := PointCoordSign(p.X)
 	return PackSignY(sign, p.Y)
+}
+
+func (p *Point) CompressBi() *big.Int {
+	cp := p.Compress()
+	bi := new(big.Int)
+	return utils.SetBigIntFromLEBytes(bi, cp[:])
 }
 
 // Decompress a compressed Point into p, and also returns the decompressed

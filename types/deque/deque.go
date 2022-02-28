@@ -5,7 +5,7 @@ const minCapacity = 16
 
 // Deque represents a single instance of the deque data structure.
 // the buf should store the pointer to the item, so when we pop,we could
-// "delete" it by making it nil(the actual item could be garbe)
+// "delete" it by making it nil(the actual item could be garbage)
 type Deque[T any] struct {
 	buf    []*T
 	head   int

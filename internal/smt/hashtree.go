@@ -1,118 +1,107 @@
 package smt
 
 import (
-	"math/big"
+	"fmt"
 
-	"github.com/steinselite/zigo/crypto/poseidon"
+	"github.com/vivijj/zigo/crypto/ff"
+	"github.com/vivijj/zigo/crypto/poseidon"
 )
 
-// This file impl the hash calculate tree model(with no item)
+// This file impl the hash calculate tree model
 
 const NARY = 4
 
-// The hasher use in the merkle tree
-var merkleHashParams = poseidon.NewParams(5, 6, 52)
-
-func Hasher(inputS []string) string {
-	inputBi := make([]*big.Int, len(inputS))
-	for i := 0; i < len(inputS); i++ {
-		inputBi[i], _ = new(big.Int).SetString(inputS[i], 10)
-	}
-	resBi := poseidon.Hash(inputBi, merkleHashParams)
-	return resBi.String()
-}
-
-// This is the implemention of the sparse merkle tree with 4_n_ary
+// MerkleHashTree This is the implementation of the sparse merkle tree with 4_n_ary
 // This merkle tree only store the hash of item in the leaf(with no origin item data)
-// all the hash is in string representation
+// all the hash is in fr representation
 type MerkleHashTree struct {
-	depth int
-	root  string
-	// cache storing the already calculated hashes for nodes
-	// it exist in [parent node hash] ==> [4]{4 children node hash}
-	cache map[string][]string
+	Depth  int                             `json:"depth"`
+	Root   ff.Element                      `json:"root"`
+	Cache  map[ff.Element][NARY]ff.Element `json:"cache"`
+	Hasher poseidon.Hasher                 `json:"-"`
 }
 
-// return an empty hash tree with default leaf hash
-func NewHashTree(treeDepth int, defaultHash string) MerkleHashTree {
-	chldHash := defaultHash
-	cache := make(map[string][]string)
-
-	var parentHash string
+// NewHashTree return an empty hash tree with default leaf hash
+func NewHashTree(treeDepth int, defaultHash ff.Element) MerkleHashTree {
+	hasher := poseidon.NewHasher(NARY + 1)
+	fmt.Println("default is ", defaultHash)
+	// calculate the prehash
+	cache := make(map[ff.Element][NARY]ff.Element)
+	curHash := defaultHash
 	for i := 0; i < treeDepth; i++ {
-		chldGroup := []string{chldHash, chldHash, chldHash, chldHash}
-		parentHash = Hasher(chldGroup)
-		cache[parentHash] = chldGroup
-		chldHash = parentHash
+		chldGroup := [NARY]ff.Element{curHash, curHash, curHash, curHash}
+		curHash := hasher.HashElements(chldGroup[:])
+		cache[curHash] = chldGroup
 	}
 	return MerkleHashTree{
-		depth: treeDepth,
-		root:  parentHash,
-		cache: cache,
+		Depth:  treeDepth,
+		Root:   curHash,
+		Cache:  cache,
+		Hasher: *hasher,
 	}
 }
 
-// insert or update the tree,(all the operation could be thought as "update" due to sparseness)
-func (ht *MerkleHashTree) Update(index int, itemHash string) {
-	currentNodeRef := ht.root
+// Update insert or update the tree,(all the operation could be thought as "update" due to sparseness)
+func (ht *MerkleHashTree) Update(index int, itemHash ff.Element) {
+	curNodeRef := ht.Root
 	lookupPath := index
 	upsertPath := index
-	sideNode := [][]string{}
+	var sideNode [][NARY]ff.Element
 
 	// look up the path to find the item with index
-	for i := 0; i < ht.depth; i++ {
-		chld := ht.cache[currentNodeRef]
+	for i := 0; i < ht.Depth; i++ {
+		chld := ht.Cache[curNodeRef]
 		sideNode = append(sideNode, chld)
-		chldIndex := (lookupPath >> (2 * (ht.depth - 1))) % NARY
-		currentNodeRef = chld[chldIndex]
+		chldIndex := (lookupPath >> (2 * (ht.Depth - 1))) % NARY
+		curNodeRef = chld[chldIndex]
 		lookupPath = lookupPath << 2 // remove the first 2 bit
 	}
 
 	// update the merkle tree bottom up
-	currentNodeRef = itemHash
+	curNodeRef = itemHash
 
-	for i := 0; i < ht.depth; i++ {
+	for i := 0; i < ht.Depth; i++ {
 		chldIndex := upsertPath % NARY
-		leaves := []string{}
+		var chldGroup [NARY]ff.Element
 
 		for j := 0; j < NARY; j++ {
 			if j != chldIndex {
-				leaves = append(leaves, sideNode[ht.depth-1-i][j])
+				chldGroup[j] = sideNode[ht.Depth-1-i][j]
 			} else {
-				leaves = append(leaves, currentNodeRef)
+				chldGroup[j] = curNodeRef
 			}
 		}
-		newRef := Hasher(leaves)
-		ht.cache[newRef] = leaves
+		newRef := ht.Hasher.HashElements(chldGroup[:])
+		ht.Cache[newRef] = chldGroup
 		upsertPath = upsertPath >> 2
-		currentNodeRef = newRef
+		curNodeRef = newRef
 	}
-	ht.root = currentNodeRef
+	ht.Root = curNodeRef
 }
 
 // MerklePath create a proof of existence for a certain element of the tree.
-// return value is list with length 4*depth(every level has 4 elemnt)
-func (ht *MerkleHashTree) MerklePath(index int) []string {
-	curItem := ht.root
+// return value is list with length 4*Depth(every level has 4 element)
+func (ht *MerkleHashTree) MerklePath(index int) []ff.Element {
+	curItem := ht.Root
 	lookupPath := index
-	// specify the capcity avoid the extend
-	sideNodes := make([][]string, ht.depth)
+	// specify the capacity avoid the extent
+	sideNodes := make([][]ff.Element, ht.Depth)
 
-	for i := 0; i < ht.depth; i++ {
-		nodeRef := (lookupPath >> (2 * (ht.depth - 1))) % NARY
-		level := ht.depth - 1 - i
-		levelNode := []string{}
+	for i := 0; i < ht.Depth; i++ {
+		nodeRef := (lookupPath >> (2 * (ht.Depth - 1))) % NARY
+		level := ht.Depth - 1 - i
+		var levelNode []ff.Element
 
 		for j := 0; j < NARY; j++ {
 			if j != nodeRef {
-				levelNode = append(levelNode, ht.cache[curItem][j])
+				levelNode = append(levelNode, ht.Cache[curItem][j])
 			}
 		}
 		sideNodes[level] = levelNode
-		curItem = ht.cache[curItem][nodeRef]
+		curItem = ht.Cache[curItem][nodeRef]
 		lookupPath = lookupPath << 2
 	}
-	merkleProof := []string{}
+	var merkleProof []ff.Element
 	for i := 0; i < len(sideNodes); i++ {
 		for j := 0; j < len(sideNodes[0]); j++ {
 			merkleProof = append(merkleProof, sideNodes[i][j])
@@ -122,14 +111,18 @@ func (ht *MerkleHashTree) MerklePath(index int) []string {
 
 }
 
-// VerifyProoof verify the given proof for the given element and index
-func (ht *MerkleHashTree) VerifyProof(merkleProof []string, index int, itemHash string) bool {
+// VerifyProof verify the given proof for the given element and index
+func (ht *MerkleHashTree) VerifyProof(
+	merkleProof []ff.Element,
+	index int,
+	itemHash ff.Element,
+) bool {
 	path := index
 	curNode := itemHash
 	proofIdx := 0
 
-	for i := 0; i < ht.depth; i++ {
-		levelNodes := []string{}
+	for i := 0; i < ht.Depth; i++ {
+		var levelNodes []ff.Element
 		for j := 0; j < NARY; j++ {
 			if j == path%NARY {
 				levelNodes = append(levelNodes, curNode)
@@ -138,8 +131,8 @@ func (ht *MerkleHashTree) VerifyProof(merkleProof []string, index int, itemHash 
 				proofIdx = proofIdx + 1
 			}
 		}
-		curNode = Hasher(levelNodes)
+		curNode = ht.Hasher.HashElements(levelNodes)
 		path = path >> 2
 	}
-	return ht.root == curNode
+	return ht.Root == curNode
 }

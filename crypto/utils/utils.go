@@ -7,8 +7,8 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/steinselite/zigo/crypto/internal/constants"
-	"github.com/steinselite/zigo/crypto/internal/ff"
+	"github.com/vivijj/zigo/crypto/constants"
+	"github.com/vivijj/zigo/crypto/ff"
 )
 
 // NewElement return a new ff.Element
@@ -24,7 +24,7 @@ func SetElementFromLEBytes(e *ff.Element, leBuf []byte) *ff.Element {
 // NewIntFromString creates a new big.Int from a decimal integer encoded as a
 // string. It will panic if the string is not a decimal integer.
 func NewIntFromString(s string) *big.Int {
-	v, ok := new(big.Int).SetString(s, 10) //nolint:gomnd
+	v, ok := new(big.Int).SetString(s, 10)
 	if !ok {
 		panic(fmt.Sprintf("Bad base 10 string %s", s))
 	}
@@ -32,7 +32,7 @@ func NewIntFromString(s string) *big.Int {
 }
 
 // SwapEndianness swaps the endianness of the value encoded in xs.  If xs is
-// Big-Endian, the result will be Little-Endian and viceversa.
+// Big-Endian, the result will be Little-Endian and vice-versa.
 func SwapEndianness(xs []byte) []byte {
 	ys := make([]byte, len(xs))
 	for i, b := range xs {

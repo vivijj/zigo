@@ -1,4 +1,4 @@
-package storage
+package schema
 
 import (
 	"context"
@@ -10,36 +10,36 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"github.com/steinselite/zigo/pkg/tx"
+	"github.com/vivijj/zigo/pkg/transaction"
 )
 
-// Schema for persisting transactions awaiting for the execution. This schema holds the transactions
-// that are received by the `mempool`, but not yet have been included into some block.
+//  This schema holds the transactions that are received by the `mempool`, but
+//  not yet have been included into some block.
 
 const CollMempool = "mempool"
 
 type MempoolTxRecord struct {
-	TxHash   string        `bson:"tx_hash"`
-	Tx       tx.ZionTxJson `bson:"tx"`
-	CreateAt int           `bson:"created_at"`
+	TxHash   string                 `bson:"tx_hash"`
+	Tx       transaction.ZionTxJson `bson:"tx"`
+	CreateAt int                    `bson:"created_at"`
 }
 
 // ToZionTx parse the mempoolTxRecord into ZionTx
-func (rec *MempoolTxRecord) ToZionTx() tx.ZionTx {
+func (rec *MempoolTxRecord) ToZionTx() transaction.ZionTx {
 	return rec.Tx.ParseZionTx()
 }
 
 type MempoolSchema struct {
-	StorageP *StorageProcessor
+	StorageCore Processor
 }
 
-// AccessCollection try to get the the specific schema collection in the database.
+// AccessCollection try to get the specific schema collection in the database.
 func (ms MempoolSchema) AccessCollection() *mongo.Collection {
-	return ms.StorageP.conn.Collection(CollMempool)
+	return ms.StorageCore.conn.Collection(CollMempool)
 }
 
 // LoadTxs load all the transactions stored in the mempool schema.
-func (ms MempoolSchema) LoadTxs() (txs []tx.ZionTx, err error) {
+func (ms MempoolSchema) LoadTxs() (txs []transaction.ZionTx, err error) {
 	coll := ms.AccessCollection()
 	opts := options.Find().SetSort(bson.D{{"created_at", 1}})
 	cursor, err := coll.Find(context.TODO(), bson.D{}, opts)
@@ -51,7 +51,7 @@ func (ms MempoolSchema) LoadTxs() (txs []tx.ZionTx, err error) {
 	if err != nil {
 		return
 	}
-	txs = make([]tx.ZionTx, 0, len(queryResults))
+	txs = make([]transaction.ZionTx, 0, len(queryResults))
 	for i := range queryResults {
 		txs = append(txs, queryResults[i].ToZionTx())
 	}
@@ -59,18 +59,20 @@ func (ms MempoolSchema) LoadTxs() (txs []tx.ZionTx, err error) {
 }
 
 // InsertTx add a new transaction into the mempool schema
-func (ms MempoolSchema) InsertTx(txData tx.ZionTx) error {
-	txHash := tx.ZionTxHash(txData)
+func (ms MempoolSchema) InsertTx(txData transaction.ZionTx) error {
+	txHash := transaction.ZionTxHash(txData)
 	txHashStr := hex.EncodeToString(txHash[:])
 
-	jtx := tx.FromZionTxToJson(txData)
+	jtx := transaction.FromZionTxToJson(txData)
 
 	coll := ms.AccessCollection()
-	_, err := coll.InsertOne(context.TODO(), MempoolTxRecord{
-		TxHash:   txHashStr,
-		Tx:       jtx,
-		CreateAt: int(time.Now().Unix()),
-	})
+	_, err := coll.InsertOne(
+		context.TODO(), MempoolTxRecord{
+			TxHash:   txHashStr,
+			Tx:       jtx,
+			CreateAt: int(time.Now().Unix()),
+		},
+	)
 	return err
 }
 
@@ -97,7 +99,7 @@ func (ms MempoolSchema) ContainTx(txHash []byte) bool {
 
 // GetTx return zion transaction with the given hash
 // if tx not exist, return ErrNoDocuments
-func (ms *MempoolSchema) GetTx(txHash []byte) (tx tx.ZionTx, err error) {
+func (ms *MempoolSchema) GetTx(txHash []byte) (tx transaction.ZionTx, err error) {
 	mempoolTx, err := ms.GetMempoolTx(txHash)
 	if err != nil {
 		err = fmt.Errorf("error GetTx: %w", err)

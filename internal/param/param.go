@@ -2,6 +2,10 @@
 package param
 
 const (
-	QuadAccountTreeDepth = 32 / 2
-	QuadBalanceTreeDepth = 16 / 2
+	AccountTreeDepth     = 32
+	BalanceTreeDepth     = 16
+	QuadAccountTreeDepth = AccountTreeDepth / 2
+	QuadBalanceTreeDepth = BalanceTreeDepth / 2
+	TotalTokens          = uint16(0)
+	MaxTokenId           = 0
 )

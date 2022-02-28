@@ -10,8 +10,8 @@ package poseidon
 import (
 	"math/big"
 
-	"github.com/steinselite/zigo/crypto/internal/ff"
-	"github.com/steinselite/zigo/crypto/internal/utils"
+	"github.com/vivijj/zigo/crypto/ff"
+	"github.com/vivijj/zigo/crypto/utils"
 
 	"golang.org/x/crypto/blake2b"
 )
@@ -126,8 +126,16 @@ func mix(state []*ff.Element, m [][]*ff.Element) []*ff.Element {
 
 // Hash calculate the poseidon hash
 func Hash(inpbi []*big.Int, params Params) *big.Int {
-	state := make([]*ff.Element, params.t)
 	input := utils.BigIntArrayToElementArray(inpbi)
+	rE := HashElement(input, params)
+	r := big.NewInt(0)
+	rE.ToBigIntRegular(r)
+	return r
+}
+
+// HashElement return the poseidon hash result in ff.Element with input of []*ff.Element
+func HashElement(input []*ff.Element, params Params) *ff.Element {
+	state := make([]*ff.Element, params.t)
 
 	copy(state[:len(input)], input[:])
 	for i := len(input); i < len(state); i++ {
@@ -141,7 +149,5 @@ func Hash(inpbi []*big.Int, params Params) *big.Int {
 	}
 
 	rE := state[0]
-	r := big.NewInt(0)
-	rE.ToBigIntRegular(r)
-	return r
+	return rE
 }
